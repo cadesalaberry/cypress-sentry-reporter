@@ -1,0 +1,82 @@
+{
+  "name": "cypress-sentry-reporter",
+  "version": "0.0.0",
+  "description": "Cypress plugin that sends failing end-to-end tests and their context to Sentry.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "bun build --target=node --format=esm --packages=external --outdir=dist src/index.ts && bun run build:types",
+    "build:types": "tsc --emitDeclarationOnly",
+    "prepublishOnly": "bun run build",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "bun run scripts/assert-e2e-smoke.ts",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "validate:pr-title": "bun run scripts/validate-pr-title.ts",
+    "validate:commit-msg": "bun run scripts/validate-commit-msg.ts",
+    "prepare": "lefthook install || true"
+  },
+  "keywords": [
+    "cypress",
+    "reporter",
+    "sentry",
+    "e2e",
+    "testing",
+    "ci"
+  ],
+  "author": "C-A de Salaberry",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cadesalaberry/cypress-sentry-reporter.git"
+  },
+  "homepage": "https://github.com/cadesalaberry/cypress-sentry-reporter#readme",
+  "bugs": {
+    "url": "https://github.com/cadesalaberry/cypress-sentry-reporter/issues"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18",
+    "bun": ">=1.1.0"
+  },
+  "packageManager": "bun@1.2.21",
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@sentry/node": ">=10.0.0",
+    "cypress": "12.17.4"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
+    "@sentry/node": "^10.27.0",
+    "@types/node": "^25",
+    "@vitest/coverage-v8": "^4.0.13",
+    "cypress": "12.17.4",
+    "lefthook": "^2.1.9",
+    "typescript": "^6.0.3",
+    "vitest": "^4.0.13"
+  },
+  "trustedDependencies": [
+    "cypress"
+  ],
+  "dependencies": {
+    "ignore": "^7.0.5"
+  }
+}

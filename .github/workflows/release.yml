@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    branches: [ main ]
+
+# No permissions by default; each job opts into exactly what it needs.
+permissions: {}
+
+jobs:
+  # Maintains a release PR that bumps the version and CHANGELOG.md from
+  # Conventional Commits. Merging that PR creates the git tag + GitHub release.
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v5
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # Publishes to npm only when release-please cut a new release.
+  #
+  # Auth is npm Trusted Publishing (OIDC) — there is no NPM_TOKEN secret. npm
+  # exchanges the GitHub OIDC token (id-token: write) for a short-lived, scoped
+  # publish credential and attaches build provenance automatically. This
+  # requires a Trusted Publisher to be configured for the package on npmjs.com
+  # (repo + this workflow file); see docs/decisions/0005-*.md.
+  publish-npm:
+    name: Publish to npm
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # required for OIDC trusted publishing + provenance
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.21'
+
+      # The published library never launches Cypress; skip the binary download.
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        env:
+          CYPRESS_INSTALL_BINARY: '0'
+
+      - name: Build
+        run: bun run build
+
+      - name: Setup Node for npm registry
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Trusted publishing (OIDC) needs npm >= 11.5.1; Node 20 ships npm 10.x.
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
