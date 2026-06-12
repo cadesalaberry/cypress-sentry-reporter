@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Questions & discussions
+    url: https://github.com/cadesalaberry/cypress-sentry-reporter/discussions
+    about: Ask questions and discuss usage here.
+  - name: 📚 Sentry Node SDK documentation
+    url: https://docs.sentry.io/platforms/javascript/guides/node/
+    about: Questions about Sentry itself are best answered in the Sentry docs.

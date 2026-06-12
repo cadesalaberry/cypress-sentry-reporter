@@ -1,0 +1,81 @@
+name: 🐛 Bug report
+description: Report a problem with cypress-sentry-reporter
+title: "fix: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report! Please fill in as much
+        of the form below as you can — it helps us reproduce and fix the issue.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight checklist
+      options:
+        - label: I have searched [existing issues](https://github.com/cadesalaberry/cypress-sentry-reporter/issues) and this is not a duplicate.
+          required: true
+        - label: I am using a supported version (latest 0.x).
+          required: false
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including what you expected to happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Ideally a minimal reproduction.
+      placeholder: |
+        1. Configure the reporter with '...'
+        2. Run `cypress run`
+        3. See error / unexpected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Reporter configuration
+      description: The relevant part of your `cypress.config.ts` `setupNodeEvents` (redact secrets such as the DSN).
+      render: ts
+    validations:
+      required: false
+  - type: input
+    id: package-version
+    attributes:
+      label: cypress-sentry-reporter version
+      placeholder: e.g. 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: cypress-version
+    attributes:
+      label: Cypress version
+      placeholder: e.g. 12.17.4
+    validations:
+      required: true
+  - type: input
+    id: sentry-version
+    attributes:
+      label: "@sentry/node version"
+      placeholder: e.g. 10.27.0
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      placeholder: e.g. 20.11.0
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / output
+      description: Relevant log output. Tip — set `dryRun: true` to log what would be sent to Sentry.
+      render: shell
+    validations:
+      required: false
