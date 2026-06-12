@@ -13,12 +13,16 @@ export { SentryReporterCore } from './core.js';
 export {
   failuresFromRun,
   failuresFromSpec,
+  screenshotsForTest,
   toFailureContext,
 } from './map-results.js';
 export { default, installSentryReporter } from './plugin.js';
 export type {
+  CodeFrame,
   CypressSentryReporterOptions,
   FailureContext,
+  FailureScreenshot,
   RunMeta,
+  SpecStats,
 } from './types.js';
 export { detectTrigger, TRIGGER_ENV } from './utils.js';

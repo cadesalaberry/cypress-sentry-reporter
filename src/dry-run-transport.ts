@@ -9,29 +9,49 @@ const LEVEL_TO_EMOJI: Record<SeverityLevel, string> = {
   log: '💬',
 };
 
+const eventToLog = (event: Event): string => {
+  // captureException events carry no `message`; surface the exception instead.
+  const exception = event.exception?.values?.[0];
+  const message =
+    event.message ??
+    (exception ? `${exception.type}: ${exception.value}` : undefined);
+  const level = event.level ? LEVEL_TO_EMOJI[event.level] : '❓';
+  const test_file = event.tags?.test_file as string;
+
+  return [
+    `Event[${level}]: '${message}'`,
+    `- test_file: '${test_file}'`,
+    `- tags: '${JSON.stringify(event.tags, null, 2)}'`,
+    `- extra: '${JSON.stringify(event.extra, null, 2)}'`,
+  ].join('\n');
+};
+
 const humanFriendlyEnvelopeToLog = (envelope: Envelope): string => {
   const items = envelope[1];
+  const lines: string[] = [];
   for (const item of items) {
     const header = item[0];
     const payload = item[1];
     const type = header.type;
 
     if (type === 'event') {
-      const event = payload as Event;
-      const message = event.message;
-      const level = event.level ? LEVEL_TO_EMOJI[event.level] : '❓';
-      const tags = event.tags;
-      const test_file = event.tags?.test_file as string;
-
-      return [
-        `Event[${level}]: '${message}'`,
-        `- test_file: '${test_file}'`,
-        `- tags: '${JSON.stringify(tags, null, 2)}'`,
-      ].join('\n');
+      lines.push(eventToLog(payload as Event));
+    } else if (type === 'attachment') {
+      const meta = header as {
+        filename?: string;
+        content_type?: string;
+        length?: number;
+      };
+      const length =
+        meta.length ?? (payload as { length?: number } | undefined)?.length;
+      lines.push(
+        `Attachment[📎]: '${meta.filename}' (${meta.content_type ?? 'unknown type'}, ${length ?? '?'} bytes)`,
+      );
+    } else {
+      lines.push(`${String(type)} ${payload}`);
     }
-    return `[cypress-sentry-reporter] dryRun transport – would send: ${type} ${payload}`;
   }
-  return '';
+  return lines.join('\n');
 };
 
 export function makeDryRunTransport() {

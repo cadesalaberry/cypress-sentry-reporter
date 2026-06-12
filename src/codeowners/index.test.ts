@@ -51,6 +51,10 @@ describe('matchOwners', () => {
   it('returns an empty array when nothing matches', () => {
     expect(matchOwners('src/api/handler.ts', [])).toEqual([]);
   });
+
+  it('returns an empty array for an empty path', () => {
+    expect(matchOwners('', entries)).toEqual([]);
+  });
 });
 
 describe('resolveCodeOwners', () => {
@@ -104,5 +108,10 @@ describe('resolveCodeOwners', () => {
   it('returns an empty array when no file path is provided', () => {
     writeCodeowners('CODEOWNERS', '* @acme/default');
     expect(resolveCodeOwners(undefined, root)).toEqual([]);
+  });
+
+  it('resolves owners for a path already relative to the root', () => {
+    writeCodeowners('CODEOWNERS', 'src/api/ @acme/api');
+    expect(resolveCodeOwners('src/api/x.ts', root)).toEqual(['@acme/api']);
   });
 });

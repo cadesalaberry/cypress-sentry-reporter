@@ -72,6 +72,31 @@ assertContains('"test_type": "e2e"', 'test_type tag');
 assertContains('"browser_name": "electron"', 'browser_name tag');
 assertContains('"trigger": "smoke"', 'manually pinned trigger tag');
 assertContains('"smoke": "true"', 'user-provided static tag');
+
+// The event title comes from the structured attempt error, not a parsed
+// displayError string.
+assertContains(
+  'AssertionError: deliberate smoke-test failure',
+  'exception title in dry-run event log',
+);
+
+// Failure screenshot: enabled by default, attached to the same envelope as
+// the event, and its metadata listed in the `screenshots` extra.
+assertContains(
+  "Attachment[📎]: 'smoke -- fails on purpose (failed).png' (image/png, ",
+  'failure screenshot attachment',
+);
+assertContains('"screenshots"', 'screenshots extra');
+assertContains(
+  'cypress/screenshots/failing.cy.js/smoke -- fails on purpose (failed).png',
+  'screenshot path in extras',
+);
+
+// Extra debug context mapped from the after:spec payload.
+assertContains('"spec_stats"', 'spec_stats extra');
+assertContains('"failures": 1', 'failure count inside spec_stats extra');
+assertContains('"code_frame"', 'code_frame extra');
+
 assertContains('would flush', 'dry-run flush log');
 
 if (failures.length > 0) {

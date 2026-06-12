@@ -97,6 +97,10 @@ export default defineConfig({
           return event;
         },
 
+        // Attach Cypress failure screenshots to the event. On by default;
+        // disable with `false` or tune the per-file size cap:
+        // screenshots: { maxBytes: 5 * 1024 * 1024 },
+
         // Safety valve in large suites
         maxEventsPerRun: 200,
 
@@ -137,15 +141,24 @@ Two consequences worth knowing:
 
 ### What gets reported
 
-- **Error**: Synthesized from the test's `displayError` (first line becomes
-  the message and error class, the rest the stack trace).
+- **Error**: Taken from the failed attempt's structured error (name, message,
+  stack) when Cypress provides one (Cypress <= 12), otherwise synthesized from
+  the test's `displayError` (first line becomes the message and error class,
+  the rest the stack trace).
+- **Attachments**: the failure **screenshots** Cypress took for the test,
+  uploaded with the event (see
+  [Failure screenshots and debug context](#failure-screenshots-and-debug-context)).
 - **Tags**: `test_file` (spec path relative to the project), `test_name`,
   `test_full_title`, `test_type`, `browser_name`, `browser_version`, `flaky`,
   `retry`, `node_version`, `os_platform`, `os_release`, `ci`, `trigger`,
   `actor_type`, `actor_name`, `repository`, `branch`, `commit_sha`, plus
   `code_owners`/`code_owner` when CODEOWNERS resolution is enabled, plus any
   custom tags.
-- **Extras**: `duration_ms`, `suite_path`, `cypress_version`, minimal CI env snapshot.
+- **Extras**: `duration_ms`, `suite_path`, `cypress_version`, `screenshots`
+  (path/timestamp/dimensions of each captured screenshot), `video_path` (when
+  Cypress records videos), `spec_stats` (per-spec pass/fail counts and
+  wall-clock timing), `code_frame` (source snippet around the failing line,
+  Cypress <= 12), minimal CI env snapshot.
 - **Contexts**: `test` context with file/name/fullTitle/duration/retry/flaky.
 - **Fingerprint**: Defaults to `['cypress-failure', specPath, testName]`; override with `getFingerprint`.
 
@@ -154,9 +167,46 @@ Known limitations (v1):
 - **Console logs** are not exposed through plugin run events, so the `logs`
   extra is always empty. If you need command/console output, attach it via
   `beforeSend` from your own infrastructure.
-- Since Cypress 13 the module-API results expose reduced per-attempt detail
-  (state only) and a single `displayError` per test; everything reported above
-  fits within that budget.
+- Since Cypress 13 the run-event results expose reduced per-attempt detail
+  (state only) and a single `displayError` per test, and drop the structured
+  attempt error and `code_frame`; everything else reported above fits within
+  that budget.
+
+### Failure screenshots and debug context
+
+When a test fails, Cypress saves a screenshot (its `screenshotOnRunFailure`,
+on by default). The reporter uploads those screenshots as **Sentry event
+attachments**, so the failure's last rendered state is visible right on the
+issue page. This is **enabled by default** — disable it or cap the upload
+size with the `screenshots` option:
+
+```ts
+installSentryReporter(on, config, {
+  // Default: attach failure screenshots, up to 10 MiB each.
+  // screenshots: true,
+
+  // Disable the upload (paths still land in the `screenshots` extra):
+  screenshots: false, // or { enabled: false }
+
+  // Keep uploads but skip files above a custom per-file cap:
+  // screenshots: { maxBytes: 5 * 1024 * 1024 },
+});
+```
+
+Notes:
+
+- Screenshots are matched to the failing test by Cypress's `testId`
+  back-reference (Cypress <= 12) or by the test title encoded in the
+  screenshot filename (Cypress >= 13). When a spec has exactly one failing
+  test, unmatched `(failed)` screenshots (e.g. truncated long titles) are
+  attributed to it as a fallback.
+- A screenshot that is missing on disk or larger than `maxBytes` (default
+  10 MiB) is skipped with a warning — its path still reaches Sentry via the
+  `screenshots` extra, so the artifact can be found in CI.
+- Sentry may bill attachments separately and applies its own size limits;
+  `screenshots: false` keeps events lean while preserving the metadata.
+- Videos are never uploaded (they are large); when Cypress records one, its
+  path is reported as the `video_path` extra instead.
 
 ### Tag parity with vitest-sentry-reporter
 
