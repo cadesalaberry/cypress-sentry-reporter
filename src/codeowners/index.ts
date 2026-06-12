@@ -32,6 +32,9 @@ export function parseCodeowners(content: string): CodeownersEntry[] {
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;
     const [pattern, ...owners] = line.split(/\s+/);
+    // Type-narrowing guard: a trimmed non-empty line always yields a first
+    // token (`trim` strips the same whitespace set `\s` splits on).
+    /* v8 ignore next */
     if (!pattern) continue;
     entries.push({ pattern, owners });
   }

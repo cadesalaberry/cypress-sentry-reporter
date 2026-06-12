@@ -135,6 +135,44 @@ describe('makeDryRunTransport', () => {
     );
   });
 
+  it('logs an undefined title when the event has no message and no exception', async () => {
+    const transport = makeDryRunTransport();
+    const envelope = createTestEnvelope('event', {
+      level: 'error',
+      tags: { test_file: 'x.cy.ts' },
+    }) as unknown as any[];
+
+    await transport.send(envelope as any);
+
+    const calls = (console.warn as any).mock.calls;
+    expect(calls[0][1]).toContain("Event[🚨]: 'undefined'");
+  });
+
+  it('prints a placeholder when the attachment size is unknown', async () => {
+    const transport = makeDryRunTransport();
+    const header = { dsn: 'https://examplePublicKey@o0.ingest.sentry.io/0' };
+    const envelope = [
+      header,
+      [
+        [
+          {
+            type: 'attachment',
+            filename: 'shot.png',
+            content_type: 'image/png',
+          },
+          null,
+        ],
+      ],
+    ];
+
+    await transport.send(envelope as any);
+
+    const calls = (console.warn as any).mock.calls;
+    expect(calls[0][1]).toContain(
+      "Attachment[📎]: 'shot.png' (image/png, ? bytes)",
+    );
+  });
+
   it('falls back to the payload length when the attachment header has none', async () => {
     const transport = makeDryRunTransport();
     const header = { dsn: 'https://examplePublicKey@o0.ingest.sentry.io/0' };

@@ -97,6 +97,27 @@ describe('SentryReporterCore', () => {
     expect(sentry.flush).toHaveBeenCalledTimes(1);
   });
 
+  it('swallows flush rejections and honors an explicit timeout', async () => {
+    const core = new SentryReporterCore({ dsn: DSN });
+    core.reportFailure(makeFailure({ id: 't1' }));
+    sentry.flush.mockImplementationOnce(() => Promise.reject(new Error('x')));
+
+    await expect(core.flush(123)).resolves.toBeUndefined();
+
+    expect(sentry.flush).toHaveBeenCalledWith(123);
+  });
+
+  it('initializes Sentry at most once even if invoked again', () => {
+    const core = new SentryReporterCore({ dsn: DSN });
+    core.reportFailure(makeFailure({ id: 't1' }));
+
+    // White-box: reportFailure never re-enters initSentry once initialized,
+    // so exercise the internal guard directly.
+    (core as unknown as { initSentry(): void }).initSentry();
+
+    expect(sentry.init).toHaveBeenCalledTimes(1);
+  });
+
   it('deduplicates failures sharing the same context id', () => {
     const core = new SentryReporterCore({ dsn: DSN });
 
@@ -106,6 +127,15 @@ describe('SentryReporterCore', () => {
     core.reportFailure(makeFailure({ id: 't1' }));
 
     expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports failures without a context id every time (no dedup possible)', () => {
+    const core = new SentryReporterCore({ dsn: DSN });
+
+    core.reportFailure({ testName: 'anonymous' });
+    core.reportFailure({ testName: 'anonymous' });
+
+    expect(sentry.captureException).toHaveBeenCalledTimes(2);
   });
 
   it('caps reported events at maxEventsPerRun', () => {
@@ -236,6 +266,21 @@ describe('SentryReporterCore', () => {
     expect(captured.name).toBe('AssertionError');
   });
 
+  it('keeps a real Error stack when the context provides none', () => {
+    const realError = new Error('actual failure');
+    const originalStack = realError.stack;
+    const core = new SentryReporterCore({ dsn: DSN });
+
+    core.reportFailure({
+      id: 't1',
+      testName: 'real error, no context stack',
+      error: realError,
+    });
+
+    const captured = sentry.captureException.mock.calls[0][0] as Error;
+    expect(captured.stack).toBe(originalStack);
+  });
+
   it('synthesizes an error from the test title when the failure has no error', () => {
     const core = new SentryReporterCore({ dsn: DSN });
 
@@ -248,6 +293,15 @@ describe('SentryReporterCore', () => {
     const captured = sentry.captureException.mock.calls[0][0] as Error;
     expect(captured.message).toBe('no error object');
     expect(captured.stack).toBeUndefined();
+  });
+
+  it('falls back to the test name when there is no message or full title', () => {
+    const core = new SentryReporterCore({ dsn: DSN });
+
+    core.reportFailure({ id: 't1', testName: 'bare name' });
+
+    const captured = sentry.captureException.mock.calls[0][0] as Error;
+    expect(captured.message).toBe('bare name');
   });
 
   it('strips the synthetic stack when the failure has none of its own', () => {
@@ -582,6 +636,44 @@ describe('SentryReporterCore', () => {
       core.reportFailure(failureWithShots());
 
       expect(scope.addAttachment).not.toHaveBeenCalled();
+    });
+
+    it('falls back to a generic content type for unknown extensions', () => {
+      const bmpPath = path.join(tmpDir, 'login -- breaks (failed).bmp');
+      fs.writeFileSync(bmpPath, Buffer.from('bmp-bytes'));
+      const scope = makeScope();
+      sentry.withScope.mockImplementationOnce((cb: (scope: unknown) => void) =>
+        cb(scope),
+      );
+      const core = new SentryReporterCore({ dsn: DSN });
+
+      core.reportFailure(
+        makeFailure({ id: 't1', screenshots: [{ path: bmpPath }] }),
+      );
+
+      expect(scope.addAttachment).toHaveBeenCalledWith(
+        expect.objectContaining({ contentType: 'application/octet-stream' }),
+      );
+    });
+
+    it('ignores non-positive or non-finite maxBytes values', () => {
+      for (const maxBytes of [0, -1, Number.NaN]) {
+        const scope = makeScope();
+        sentry.withScope.mockImplementationOnce(
+          (cb: (scope: unknown) => void) => cb(scope),
+        );
+        const core = new SentryReporterCore({
+          dsn: DSN,
+          screenshots: { maxBytes },
+        });
+
+        core.reportFailure(
+          makeFailure({ id: 't1', screenshots: [{ path: pngPath }] }),
+        );
+
+        // The default 10 MiB cap applies, so the small file is attached.
+        expect(scope.addAttachment).toHaveBeenCalledTimes(1);
+      }
     });
 
     it('skips screenshots larger than maxBytes but keeps the event', () => {

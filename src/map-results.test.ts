@@ -130,6 +130,10 @@ describe('isFlaky', () => {
     expect(isFlaky(failedTest)).toBe(false);
     expect(isFlaky(passedTest)).toBe(false);
   });
+
+  it('treats a passed test without attempt details as not flaky', () => {
+    expect(isFlaky({ title: ['t'], state: 'passed' })).toBe(false);
+  });
 });
 
 describe('toFailureContext', () => {
@@ -275,8 +279,10 @@ describe('screenshotsForTest', () => {
       state: 'passed',
       attempts: [{ state: 'failed' }, { state: 'passed' }],
     };
+    // Malformed sibling without a title: must not break the exclusion scan.
+    const untitled = { state: 'passed' } as CypressTestResult;
     const results: CypressSpecResults = {
-      tests: [failing, flaky],
+      tests: [failing, flaky, untitled],
       screenshots: [
         { path: `${SHOT_DIR}/auth -- a very long test na (failed).png` },
         // Belongs to the flaky test's failed attempt — must not be stolen.
@@ -306,6 +312,39 @@ describe('screenshotsForTest', () => {
     expect(screenshotsForTest(failing, undefined)).toBeUndefined();
   });
 
+  it('matches by title even when the results carry no test list', () => {
+    const failing: CypressTestResult = {
+      title: ['a', 'one'],
+      state: 'failed',
+    };
+
+    expect(
+      screenshotsForTest(failing, {
+        screenshots: [
+          { path: `${SHOT_DIR}/a -- one (failed).png` },
+          // Entries without a path (or with an empty title on the test side)
+          // must be ignored, not crash the matching.
+          { takenAt: '2026-06-12T00:00:00.000Z' },
+        ],
+      })?.map((s) => s.path),
+    ).toEqual([`${SHOT_DIR}/a -- one (failed).png`]);
+  });
+
+  it('never title-matches a test with an empty or missing title', () => {
+    const failing = { state: 'failed' } as CypressTestResult;
+    const alsoFailing: CypressTestResult = {
+      title: ['a', 'two'],
+      state: 'failed',
+    };
+
+    expect(
+      screenshotsForTest(failing, {
+        tests: [failing, alsoFailing],
+        screenshots: [{ path: `${SHOT_DIR}/a -- two (failed).png` }],
+      }),
+    ).toBeUndefined();
+  });
+
   it('deduplicates screenshots reported through multiple shapes', () => {
     const shot = { path: `${SHOT_DIR}/a -- one (failed).png` };
     const failing: CypressTestResult = {
@@ -320,6 +359,28 @@ describe('screenshotsForTest', () => {
     };
 
     expect(screenshotsForTest(failing, results)).toHaveLength(1);
+  });
+
+  it('drops duplicate and pathless attempt-level screenshots', () => {
+    const shot = { path: `${SHOT_DIR}/a -- one (failed).png` };
+    const failing: CypressTestResult = {
+      title: ['a', 'one'],
+      state: 'failed',
+      attempts: [
+        // The same file listed twice plus an entry missing its path.
+        { state: 'failed', screenshots: [shot, { takenAt: 'x' }] },
+        { state: 'failed', screenshots: [shot] },
+      ],
+    };
+
+    expect(screenshotsForTest(failing, { tests: [failing] })).toEqual([
+      {
+        path: shot.path,
+        takenAt: undefined,
+        width: undefined,
+        height: undefined,
+      },
+    ]);
   });
 });
 
@@ -453,6 +514,31 @@ describe('toFailureContext debug context', () => {
     expect(failures[0]?.specStats).toEqual(
       expect.objectContaining({ failures: 1, durationMs: 450 }),
     );
+  });
+
+  it('uses an attempt error that only carries a name, message from displayError', () => {
+    const ctx = toFailureContext(SPEC, {
+      title: ['auth', 'breaks'],
+      state: 'failed',
+      displayError: 'CypressError: the spec crashed',
+      attempts: [{ state: 'failed', error: { name: 'CypressError' } }],
+    });
+
+    expect(ctx.error).toEqual(
+      expect.objectContaining({ name: 'CypressError' }),
+    );
+    expect(ctx.message).toBe('the spec crashed');
+  });
+
+  it('tolerates a test result without a title', () => {
+    const ctx = toFailureContext(SPEC, {
+      state: 'failed',
+    } as CypressTestResult);
+
+    expect(ctx.testName).toBe('unknown test');
+    expect(ctx.fullTitle).toBe('unknown test');
+    expect(ctx.suitePath).toEqual([]);
+    expect(ctx.id).toBe('cypress/e2e/login.cy.ts::unknown test');
   });
 
   it('leaves the debug fields undefined when Cypress provides nothing', () => {
