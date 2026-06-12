@@ -61,14 +61,14 @@
   },
   "peerDependencies": {
     "@sentry/node": ">=10.0.0",
-    "cypress": "12.17.4"
+    "cypress": "15.17.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.16",
     "@sentry/node": "^10.27.0",
     "@types/node": "^25",
     "@vitest/coverage-v8": "^4.0.13",
-    "cypress": "12.17.4",
+    "cypress": "15.17.0",
     "lefthook": "^2.1.9",
     "typescript": "^6.0.3",
     "vitest": "^4.0.13"
