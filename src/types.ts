@@ -85,6 +85,18 @@ export type CypressSentryReporterOptions = {
    */
   codeowners?: boolean | { enabled?: boolean; root?: string };
   /**
+   * Attach the screenshots Cypress takes for failing tests to the Sentry
+   * event as attachments (visible on the issue page), and list their
+   * paths/dimensions in the `screenshots` extra.
+   *
+   * Enabled by default (requires Cypress's own `screenshotOnRunFailure`,
+   * which is on by default). Set `false` (or `{ enabled: false }`) to keep
+   * the metadata but skip the upload, or pass an object to tune the
+   * per-file size cap (default 10 MiB; oversized files are skipped with a
+   * warning but still listed in the `screenshots` extra).
+   */
+  screenshots?: boolean | { enabled?: boolean; maxBytes?: number };
+  /**
    * Upper bound on number of events sent in a single Cypress run. Useful to cap noise in very large suites.
    */
   maxEventsPerRun?: number;
@@ -93,6 +105,44 @@ export type CypressSentryReporterOptions = {
    * It has no effect if `enabled` is false.
    */
   dryRun?: boolean;
+};
+
+/** Screenshot captured while the test failed, as reported by Cypress. */
+export type FailureScreenshot = {
+  /** Absolute path of the image on disk. */
+  path: string;
+  /** ISO timestamp the screenshot was taken at. */
+  takenAt?: string;
+  width?: number;
+  height?: number;
+};
+
+/**
+ * Source-code frame around the failing line. Cypress <= 12 delivers it on the
+ * failed attempt's structured error; later versions omit it.
+ */
+export type CodeFrame = {
+  line?: number;
+  column?: number;
+  originalFile?: string;
+  relativeFile?: string;
+  absoluteFile?: string;
+  /** Pre-rendered snippet with a `>` marker on the failing line. */
+  frame?: string;
+  language?: string;
+};
+
+/** Normalized per-spec run statistics (counts and wall-clock timing). */
+export type SpecStats = {
+  suites?: number;
+  tests?: number;
+  passes?: number;
+  pending?: number;
+  skipped?: number;
+  failures?: number;
+  startedAt?: string;
+  endedAt?: string;
+  durationMs?: number;
 };
 
 export type FailureContext = {
@@ -109,6 +159,14 @@ export type FailureContext = {
   retry?: number;
   flaky?: boolean;
   logs?: string[];
+  /** Screenshots Cypress took while this test failed. */
+  screenshots?: FailureScreenshot[];
+  /** Path of the spec's video recording, when Cypress captured one. */
+  videoPath?: string;
+  /** Statistics of the spec run the failure belongs to. */
+  specStats?: SpecStats;
+  /** Code frame around the failing line, when Cypress provides one. */
+  codeFrame?: CodeFrame;
   meta?: Record<string, unknown>;
 };
 
@@ -161,14 +219,44 @@ export interface CypressSpecInfo {
   absolute?: string;
 }
 
+/**
+ * Subset of a screenshot entry. Cypress <= 12 run-event payloads list them
+ * per spec with a `testId` linking back to the test; Cypress >= 13 keeps the
+ * per-spec list but drops the id (the test title only survives in `path`).
+ * The module-API shape additionally nests screenshots under each attempt.
+ */
+export interface CypressScreenshot {
+  name?: string | null;
+  path?: string;
+  takenAt?: string;
+  height?: number;
+  width?: number;
+  testId?: string;
+  testAttemptIndex?: number;
+}
+
+/** Subset of the structured error on a failed attempt (Cypress <= 12). */
+export interface CypressAttemptError {
+  name?: string;
+  message?: string;
+  stack?: string;
+  codeFrame?: CodeFrame | null;
+}
+
 /** Subset of a single attempt result. Cypress >= 13 only exposes `state`. */
 export interface CypressTestAttempt {
   state?: string;
   duration?: number;
+  /** Cypress <= 12 run-event payloads name the attempt duration this way. */
+  wallClockDuration?: number;
+  error?: CypressAttemptError | null;
+  screenshots?: CypressScreenshot[] | null;
 }
 
 /** Subset of a per-test result within `after:spec` results. */
 export interface CypressTestResult {
+  /** Per-spec test id (`r3`, ...); present in Cypress <= 12 payloads. */
+  testId?: string;
   title: string[];
   state?: string;
   displayError?: string | null;
@@ -176,10 +264,32 @@ export interface CypressTestResult {
   attempts?: CypressTestAttempt[] | null;
 }
 
+/**
+ * Subset of the per-spec `stats`. Cypress <= 12 run-event payloads use the
+ * `wallClock*` names, the module API and Cypress >= 13 the plain ones.
+ */
+export interface CypressSpecStats {
+  suites?: number;
+  tests?: number;
+  passes?: number;
+  pending?: number;
+  skipped?: number;
+  failures?: number;
+  startedAt?: string;
+  endedAt?: string;
+  duration?: number;
+  wallClockStartedAt?: string;
+  wallClockEndedAt?: string;
+  wallClockDuration?: number;
+}
+
 /** Subset of the per-spec results payload delivered to `after:spec`. */
 export interface CypressSpecResults {
   spec?: CypressSpecInfo;
   tests?: CypressTestResult[] | null;
+  stats?: CypressSpecStats | null;
+  screenshots?: CypressScreenshot[] | null;
+  video?: string | null;
 }
 
 /** Subset of the whole-run results payload delivered to `after:run`. */

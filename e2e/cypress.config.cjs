@@ -5,7 +5,8 @@ const { defineConfig } = require('cypress');
 
 module.exports = defineConfig({
   video: false,
-  screenshotOnRunFailure: false,
+  // screenshotOnRunFailure is left at its default (true): the smoke test
+  // asserts the failure screenshot is attached to the dry-run envelope.
   e2e: {
     supportFile: false,
     async setupNodeEvents(on, config) {
@@ -13,6 +14,8 @@ module.exports = defineConfig({
       const { installSentryReporter } = await import('../dist/index.js');
       return installSentryReporter(on, config, {
         dryRun: true,
+        // `screenshots` is intentionally NOT set: attaching failure
+        // screenshots must work by default.
         tags: { smoke: 'true' },
       });
     },

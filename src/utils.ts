@@ -134,6 +134,13 @@ export function extras(
     logs: ctx.logs,
     suite_path: ctx.suitePath,
     cypress_version: meta?.cypressVersion,
+    // Debug aids mapped from the run-event payloads (when Cypress provides
+    // them): screenshot paths/dimensions, the spec's video recording, the
+    // spec's run statistics and the code frame around the failing line.
+    screenshots: ctx.screenshots,
+    video_path: ctx.videoPath,
+    spec_stats: ctx.specStats,
+    code_frame: ctx.codeFrame,
     env: providerEnvSnapshot(),
   };
 }

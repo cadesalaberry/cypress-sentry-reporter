@@ -1,4 +1,6 @@
-import type { NodeOptions } from '@sentry/node';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import type { NodeOptions, Scope } from '@sentry/node';
 import { captureException, flush, init, withScope } from '@sentry/node';
 import { resolveCodeOwners } from './codeowners/index.js';
 import { makeDryRunTransport } from './dry-run-transport.js';
@@ -20,6 +22,20 @@ import {
 } from './utils.js';
 
 /**
+ * Default per-screenshot size cap. Generous for failure screenshots (usually
+ * well under 1 MiB) while staying far below Sentry's attachment limits, so an
+ * oversized image can never sink the envelope carrying the failure event.
+ */
+const DEFAULT_SCREENSHOT_MAX_BYTES = 10 * 1024 * 1024;
+
+const IMAGE_CONTENT_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+};
+
+/**
  * Runner-neutral reporting core: owns the Sentry lifecycle (lazy init,
  * capture, flush) and the run-level state (dedup, `maxEventsPerRun` cap).
  * The Cypress plugin (`plugin.ts`) feeds it {@link FailureContext}s mapped
@@ -36,6 +52,8 @@ export class SentryReporterCore {
   private maxEventsPerRun?: number;
   private codeownersEnabled: boolean;
   private codeownersRoot?: string;
+  private screenshotsEnabled: boolean;
+  private screenshotMaxBytes: number;
 
   constructor(options: CypressSentryReporterOptions = {}) {
     this.name = 'cypress-sentry-reporter';
@@ -56,6 +74,15 @@ export class SentryReporterCore {
         ? co.root
         : repoRoot()
       : undefined;
+
+    // Screenshot attachments are on unless explicitly switched off.
+    const shots = options.screenshots;
+    this.screenshotsEnabled =
+      shots !== false &&
+      !(typeof shots === 'object' && shots !== null && shots.enabled === false);
+    this.screenshotMaxBytes =
+      (typeof shots === 'object' && shots !== null && shots.maxBytes) ||
+      DEFAULT_SCREENSHOT_MAX_BYTES;
   }
 
   /** Merge run-scoped metadata (browser, Cypress version, testing type). */
@@ -160,6 +187,7 @@ export class SentryReporterCore {
       if (owners.length > 0) scope.setExtra('code_owners', owners);
       scope.setContext('test', testContext);
       scope.setFingerprint(fingerprint);
+      if (this.screenshotsEnabled) this.attachScreenshots(scope, ctx);
 
       const user = this.options.getUser?.(ctx);
       if (user) scope.setUser(user);
@@ -171,6 +199,37 @@ export class SentryReporterCore {
 
       captureException(error);
     });
+  }
+
+  /**
+   * Upload the failure's screenshots as event attachments. A screenshot that
+   * is missing on disk or larger than `screenshots.maxBytes` is skipped with
+   * a warning — its path still reaches Sentry via the `screenshots` extra.
+   */
+  private attachScreenshots(scope: Scope, ctx: FailureContext): void {
+    for (const shot of ctx.screenshots ?? []) {
+      try {
+        const size = fs.statSync(shot.path).size;
+        if (size > this.screenshotMaxBytes) {
+          console.warn(
+            `[cypress-sentry-reporter] screenshot ${shot.path} (${size} bytes) exceeds the ${this.screenshotMaxBytes} byte cap; not attached`,
+          );
+          continue;
+        }
+        scope.addAttachment({
+          filename: path.basename(shot.path),
+          data: fs.readFileSync(shot.path),
+          contentType:
+            IMAGE_CONTENT_TYPES[path.extname(shot.path).toLowerCase()] ??
+            'application/octet-stream',
+        });
+      } catch (error) {
+        console.warn(
+          `[cypress-sentry-reporter] could not read screenshot ${shot.path}; not attached`,
+          error,
+        );
+      }
+    }
   }
 
   private initSentry(): void {

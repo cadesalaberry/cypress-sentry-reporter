@@ -1,5 +1,8 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import type { Event } from '@sentry/node';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const sentry = vi.hoisted(() => ({
   init: vi.fn(),
@@ -14,6 +17,7 @@ const sentry = vi.hoisted(() => ({
       setFingerprint: vi.fn(),
       setUser: vi.fn(),
       addEventProcessor: vi.fn(),
+      addAttachment: vi.fn(),
     }),
   ),
 }));
@@ -63,6 +67,7 @@ function makeScope() {
     setFingerprint: vi.fn(),
     setUser: vi.fn(),
     addEventProcessor: vi.fn(),
+    addAttachment: vi.fn(),
   };
 }
 
@@ -486,6 +491,149 @@ describe('SentryReporterCore', () => {
         code_owners: '@platform',
       }),
     );
+  });
+
+  describe('screenshot attachments', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'csr-shots-'));
+    const pngPath = path.join(tmpDir, 'login -- breaks (failed).png');
+    const jpgPath = path.join(tmpDir, 'login -- breaks (failed).jpg');
+    fs.writeFileSync(pngPath, Buffer.from('png-bytes'));
+    fs.writeFileSync(jpgPath, Buffer.from('jpg-bytes'));
+
+    afterAll(() => {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    function failureWithShots() {
+      return makeFailure({
+        id: 't1',
+        screenshots: [{ path: pngPath }, { path: jpgPath }],
+      });
+    }
+
+    it('attaches the failure screenshots by default', () => {
+      const scope = makeScope();
+      sentry.withScope.mockImplementationOnce((cb: (scope: unknown) => void) =>
+        cb(scope),
+      );
+      const core = new SentryReporterCore({ dsn: DSN });
+
+      core.reportFailure(failureWithShots());
+
+      expect(scope.addAttachment).toHaveBeenCalledTimes(2);
+      expect(scope.addAttachment).toHaveBeenCalledWith({
+        filename: 'login -- breaks (failed).png',
+        contentType: 'image/png',
+        data: Buffer.from('png-bytes'),
+      });
+      expect(scope.addAttachment).toHaveBeenCalledWith({
+        filename: 'login -- breaks (failed).jpg',
+        contentType: 'image/jpeg',
+        data: Buffer.from('jpg-bytes'),
+      });
+      expect(sentry.captureException).toHaveBeenCalledTimes(1);
+    });
+
+    it('lists screenshot metadata in the extras', () => {
+      const scope = makeScope();
+      sentry.withScope.mockImplementationOnce((cb: (scope: unknown) => void) =>
+        cb(scope),
+      );
+      const core = new SentryReporterCore({ dsn: DSN });
+
+      core.reportFailure(failureWithShots());
+
+      expect(scope.setExtras.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          screenshots: [{ path: pngPath }, { path: jpgPath }],
+        }),
+      );
+    });
+
+    it('can be disabled with screenshots: false', () => {
+      const scope = makeScope();
+      sentry.withScope.mockImplementationOnce((cb: (scope: unknown) => void) =>
+        cb(scope),
+      );
+      const core = new SentryReporterCore({ dsn: DSN, screenshots: false });
+
+      core.reportFailure(failureWithShots());
+
+      expect(scope.addAttachment).not.toHaveBeenCalled();
+      // The metadata extra survives so the paths are still discoverable.
+      expect(scope.setExtras.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          screenshots: [{ path: pngPath }, { path: jpgPath }],
+        }),
+      );
+      expect(sentry.captureException).toHaveBeenCalledTimes(1);
+    });
+
+    it('can be disabled with screenshots: { enabled: false }', () => {
+      const scope = makeScope();
+      sentry.withScope.mockImplementationOnce((cb: (scope: unknown) => void) =>
+        cb(scope),
+      );
+      const core = new SentryReporterCore({
+        dsn: DSN,
+        screenshots: { enabled: false },
+      });
+
+      core.reportFailure(failureWithShots());
+
+      expect(scope.addAttachment).not.toHaveBeenCalled();
+    });
+
+    it('skips screenshots larger than maxBytes but keeps the event', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const scope = makeScope();
+        sentry.withScope.mockImplementationOnce(
+          (cb: (scope: unknown) => void) => cb(scope),
+        );
+        const core = new SentryReporterCore({
+          dsn: DSN,
+          screenshots: { maxBytes: 4 },
+        });
+
+        core.reportFailure(failureWithShots());
+
+        expect(scope.addAttachment).not.toHaveBeenCalled();
+        expect(sentry.captureException).toHaveBeenCalledTimes(1);
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('exceeds the 4 byte cap'),
+        );
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('skips unreadable screenshots but keeps the event', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const scope = makeScope();
+        sentry.withScope.mockImplementationOnce(
+          (cb: (scope: unknown) => void) => cb(scope),
+        );
+        const core = new SentryReporterCore({ dsn: DSN });
+
+        core.reportFailure(
+          makeFailure({
+            id: 't1',
+            screenshots: [{ path: path.join(tmpDir, 'missing.png') }],
+          }),
+        );
+
+        expect(scope.addAttachment).not.toHaveBeenCalled();
+        expect(sentry.captureException).toHaveBeenCalledTimes(1);
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('could not read screenshot'),
+          expect.anything(),
+        );
+      } finally {
+        warn.mockRestore();
+      }
+    });
   });
 
   it('keeps only the minimal default integrations', () => {

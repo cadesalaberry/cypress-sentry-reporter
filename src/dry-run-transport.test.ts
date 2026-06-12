@@ -65,7 +65,90 @@ describe('makeDryRunTransport', () => {
 
     const calls = (console.warn as any).mock.calls;
     expect(calls.length).toBe(1);
-    expect(calls[0][1]).toContain('would send: session');
+    expect(calls[0][0]).toContain('would send:');
+    expect(calls[0][1]).toContain('session');
+  });
+
+  it('derives the event title from the exception when there is no message', async () => {
+    const transport = makeDryRunTransport();
+    const envelope = createTestEnvelope('event', {
+      level: 'error',
+      exception: {
+        values: [{ type: 'AssertionError', value: 'expected 2 to equal 3' }],
+      },
+      tags: { test_file: 'cypress/e2e/failing.cy.js' },
+    }) as unknown as any[];
+
+    await transport.send(envelope as any);
+
+    const calls = (console.warn as any).mock.calls;
+    expect(calls[0][1]).toContain(
+      "Event[🚨]: 'AssertionError: expected 2 to equal 3'",
+    );
+  });
+
+  it('logs event extras alongside the tags', async () => {
+    const transport = makeDryRunTransport();
+    const envelope = createTestEnvelope('event', {
+      message: 'hello',
+      level: 'error',
+      tags: { test_file: 'x.cy.ts' },
+      extra: { spec_stats: { failures: 1 } },
+    }) as unknown as any[];
+
+    await transport.send(envelope as any);
+
+    const calls = (console.warn as any).mock.calls;
+    expect(calls[0][1]).toContain('"spec_stats"');
+    expect(calls[0][1]).toContain('"failures": 1');
+  });
+
+  it('logs every envelope item, including attachments', async () => {
+    const transport = makeDryRunTransport();
+    const header = { dsn: 'https://examplePublicKey@o0.ingest.sentry.io/0' };
+    const envelope = [
+      header,
+      [
+        [
+          { type: 'event' },
+          { message: 'hello', level: 'error', tags: { test_file: 'x.cy.ts' } },
+        ],
+        [
+          {
+            type: 'attachment',
+            filename: 'login (failed).png',
+            content_type: 'image/png',
+            length: 1234,
+          },
+          new Uint8Array(1234),
+        ],
+      ],
+    ];
+
+    await transport.send(envelope as any);
+
+    const calls = (console.warn as any).mock.calls;
+    expect(calls.length).toBe(1);
+    expect(calls[0][1]).toContain('Event[🚨]');
+    expect(calls[0][1]).toContain(
+      "Attachment[📎]: 'login (failed).png' (image/png, 1234 bytes)",
+    );
+  });
+
+  it('falls back to the payload length when the attachment header has none', async () => {
+    const transport = makeDryRunTransport();
+    const header = { dsn: 'https://examplePublicKey@o0.ingest.sentry.io/0' };
+    const envelope = [
+      header,
+      [[{ type: 'attachment', filename: 'shot.png' }, new Uint8Array(42)]],
+    ];
+
+    await transport.send(envelope as any);
+
+    const calls = (console.warn as any).mock.calls;
+    expect(calls[0][1]).toContain(
+      "Attachment[📎]: 'shot.png' (unknown type, 42 bytes)",
+    );
   });
 
   it('logs an empty description for envelopes without items', async () => {
