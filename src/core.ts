@@ -80,9 +80,14 @@ export class SentryReporterCore {
     this.screenshotsEnabled =
       shots !== false &&
       !(typeof shots === 'object' && shots !== null && shots.enabled === false);
+    const maxBytes =
+      typeof shots === 'object' && shots !== null ? shots.maxBytes : undefined;
+    // Only a finite positive cap is honored; anything else (0, negatives,
+    // NaN/Infinity) silently falls back to the default.
     this.screenshotMaxBytes =
-      (typeof shots === 'object' && shots !== null && shots.maxBytes) ||
-      DEFAULT_SCREENSHOT_MAX_BYTES;
+      typeof maxBytes === 'number' && Number.isFinite(maxBytes) && maxBytes > 0
+        ? maxBytes
+        : DEFAULT_SCREENSHOT_MAX_BYTES;
   }
 
   /** Merge run-scoped metadata (browser, Cypress version, testing type). */

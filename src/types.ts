@@ -93,7 +93,8 @@ export type CypressSentryReporterOptions = {
    * which is on by default). Set `false` (or `{ enabled: false }`) to keep
    * the metadata but skip the upload, or pass an object to tune the
    * per-file size cap (default 10 MiB; oversized files are skipped with a
-   * warning but still listed in the `screenshots` extra).
+   * warning but still listed in the `screenshots` extra). Non-positive or
+   * non-finite `maxBytes` values fall back to the default.
    */
   screenshots?: boolean | { enabled?: boolean; maxBytes?: number };
   /**
