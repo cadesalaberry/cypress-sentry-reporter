@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.0](https://github.com/cadesalaberry/cypress-sentry-reporter/compare/v0.0.1...v0.1.0) (2026-06-12)
+
+
+### ✨ Features
+
+* ✨ report failing Cypress tests to Sentry via plugin run events ([a85c397](https://github.com/cadesalaberry/cypress-sentry-reporter/commit/a85c397cd09b381551806e4681842ede0dd4cf96))
+* ✨ report failing Cypress tests to Sentry via plugin run events ([9316539](https://github.com/cadesalaberry/cypress-sentry-reporter/commit/9316539d0e09e11e7d1dcb40cb9e4cf85385598a))
+* **reporter:** attach failure screenshots and richer debug context ([#4](https://github.com/cadesalaberry/cypress-sentry-reporter/issues/4)) ([38a299e](https://github.com/cadesalaberry/cypress-sentry-reporter/commit/38a299ef559ce82e1c3176cb752cf72657548a0d))
+
+## Changelog
+
 All notable changes to this project are documented in this file.
 
 Releases are automated with [release-please](https://github.com/googleapis/release-please)
