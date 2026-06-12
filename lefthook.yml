@@ -1,0 +1,15 @@
+# Git hooks managed by lefthook (https://lefthook.dev).
+# Installed on `bun install`; run `bunx lefthook install` to set up manually.
+
+pre-commit:
+  parallel: true
+  commands:
+    biome:
+      glob: "*.{js,jsx,ts,tsx,json,jsonc}"
+      run: bunx biome check --write --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+
+commit-msg:
+  commands:
+    conventional-commit:
+      run: bun run scripts/validate-commit-msg.ts {1}

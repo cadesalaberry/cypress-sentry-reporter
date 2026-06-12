@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.21'
+
+      # --frozen-lockfile keeps CI in lockstep with the npm publish job
+      # (.github/workflows/release.yml), which also installs frozen. Without it,
+      # a stale bun.lock — e.g. a Dependabot bump that updates package.json but
+      # not the lockfile — slips through CI, lands on main, and only fails later
+      # when the release's frozen install rejects it. See docs/decisions/0005.
+      - name: Install dependencies
+        # The Cypress binary is only needed by the e2e-smoke job.
+        run: CYPRESS_INSTALL_BINARY=0 bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Test with coverage
+        run: bun run test:coverage
+
+      - name: Upload coverage to Codecov
+        # Dependabot-triggered runs have no access to repository Actions
+        # secrets, so CODECOV_TOKEN is empty and the upload falls back to a
+        # tokenless attempt. Codecov rejects tokenless uploads for same-repo
+        # branches ("Token required because branch is protected"), which then
+        # fails the job via fail_ci_if_error. Skip the upload for Dependabot;
+        # coverage is still uploaded on main pushes and regular PRs.
+        if: github.actor != 'dependabot[bot]'
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: cadesalaberry/cypress-sentry-reporter
+          files: ./coverage/lcov.info
+          # Install the uploader from PyPI to avoid the binary's GPG
+          # signature self-check, which is unreliable on the runners.
+          use_pypi: true
+          fail_ci_if_error: true
+
+  # Dry-run smoke test against a real Cypress run: the e2e/ fixture has one
+  # passing and one deliberately failing spec, and scripts/e2e-smoke.ts
+  # asserts the failing spec produces exactly one envelope with the expected
+  # tags. Matrix over the supported Cypress versions.
+  e2e-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cypress: ['12.17.4']
+    name: e2e-smoke (cypress ${{ matrix.cypress }})
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.21'
+
+      - name: Cache Cypress binary
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/Cypress
+          key: cypress-binary-${{ matrix.cypress }}
+
+      # Frozen install: see the note in the build-and-test job above.
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Cypress binary
+        run: bunx cypress install
+
+      - name: Build
+        run: bun run build
+
+      - name: Run smoke test
+        run: bun run test:e2e
+
+  quality:
+    runs-on: ubuntu-latest
+    name: lint & package checks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.21'
+
+      # Frozen install: see the note in the build-and-test job above.
+      - name: Install dependencies
+        run: CYPRESS_INSTALL_BINARY=0 bun install --frozen-lockfile
+
+      - name: Lint & format check (Biome)
+        run: bunx biome ci .
+
+      - name: Build
+        run: bun run build
+
+      - name: Validate package (publint)
+        run: bunx publint
+
+      - name: Validate types (are-the-types-wrong)
+        run: bunx @arethetypeswrong/cli --pack . --profile esm-only

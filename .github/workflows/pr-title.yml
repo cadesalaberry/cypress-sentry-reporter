@@ -1,0 +1,33 @@
+name: PR Title
+
+# Validates that the pull request title follows Conventional Commits so that
+# release-please can derive the version bump and CHANGELOG entry from it when
+# the PR is squash-merged (the squash commit defaults to the PR title).
+#
+# The validation logic lives in scripts/validate-pr-title.ts and is run here
+# with Bun.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+# Only the title is read; no write access is needed.
+permissions: {}
+
+jobs:
+  validate-pr-title:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.21'
+
+      - name: Validate PR title
+        # Passed via env to avoid shell injection from the untrusted title.
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: bun run scripts/validate-pr-title.ts
