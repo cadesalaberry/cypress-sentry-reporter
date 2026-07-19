@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.1](https://github.com/cadesalaberry/cypress-sentry-reporter/compare/v0.1.0...v0.1.1) (2026-07-19)
+
+
+### 👷 Continuous Integration
+
+* Bump actions/cache from 5 to 6 ([#9](https://github.com/cadesalaberry/cypress-sentry-reporter/issues/9)) ([6d7cff8](https://github.com/cadesalaberry/cypress-sentry-reporter/commit/6d7cff8481cd8bb840d65537d72dfc62a3d71f2b))
+* Bump actions/checkout from 6 to 7 ([#6](https://github.com/cadesalaberry/cypress-sentry-reporter/issues/6)) ([e732678](https://github.com/cadesalaberry/cypress-sentry-reporter/commit/e73267899f9e1fd986aaf59a944d8f84f05227af))
+* Bump actions/setup-node from 6 to 7 ([#12](https://github.com/cadesalaberry/cypress-sentry-reporter/issues/12)) ([ef4ee3a](https://github.com/cadesalaberry/cypress-sentry-reporter/commit/ef4ee3ae0f2c1cc751fdc8b31dafbe9895495a70))
+
 ## [0.1.0](https://github.com/cadesalaberry/cypress-sentry-reporter/compare/v0.0.1...v0.1.0) (2026-06-12)
 
 
