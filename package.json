@@ -1,6 +1,6 @@
 {
   "name": "cypress-sentry-reporter",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cypress plugin that reports failing end-to-end tests to Sentry with rich, consistent tags.",
   "type": "module",
   "main": "dist/index.js",
