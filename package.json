@@ -70,7 +70,7 @@
     "@vitest/coverage-v8": "^4.0.13",
     "cypress": "12.17.4",
     "lefthook": "^2.1.9",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.0.13"
   },
   "trustedDependencies": [
