@@ -67,7 +67,7 @@
     "@biomejs/biome": "^2.4.16",
     "@sentry/node": "^10.27.0",
     "@types/node": "^26",
-    "@vitest/coverage-v8": "^4.0.13",
+    "@vitest/coverage-v8": "^5.0.0",
     "cypress": "12.17.4",
     "lefthook": "^2.1.9",
     "typescript": "^6.0.3",
