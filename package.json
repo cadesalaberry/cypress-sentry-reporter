@@ -71,7 +71,7 @@
     "cypress": "12.17.4",
     "lefthook": "^2.1.9",
     "typescript": "^6.0.3",
-    "vitest": "^4.0.13"
+    "vitest": "^5.0.1"
   },
   "trustedDependencies": [
     "cypress"
